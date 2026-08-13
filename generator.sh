@@ -135,9 +135,9 @@ USER_CFLAGS := -O2 -g -Wall \\
 # Linker flags
 LIBBPF_STATIC := \$(shell find /usr/local -name libbpf.a 2>/dev/null | head -n 1)
 ifeq (\$(LIBBPF_STATIC),)
-    LDFLAGS := -L/usr/local/lib -L/usr/local/lib64 -lbpf -lelf -lz
+    LDFLAGS := -L/usr/local/lib -L/usr/local/lib64 -lbpf -lelf -lz -static
 else
-    LDFLAGS := \$(LIBBPF_STATIC) -lelf -lz
+    LDFLAGS := \$(LIBBPF_STATIC) -lelf -lz -static
 endif
 
 # Default target
