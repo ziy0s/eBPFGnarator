@@ -62,15 +62,17 @@ fi
 echo ""
 echo -e "${BLUE}Creating project structure...${NC}"
 mkdir -p "$Dir/src"
+mkdir -p "$Dir/include"
 echo -e "  ${GREEN}✓${NC} $Dir/src/"
+echo -e "  ${GREEN}✓${NC} $Dir/include/"
 
 # Generate vmlinux.h
 echo -e "  ${YELLOW}→${NC} Generating vmlinux.h..."
-bpftool btf dump file /sys/kernel/btf/vmlinux format c > "$Dir/src/vmlinux.h" 2>/dev/null
+bpftool btf dump file /sys/kernel/btf/vmlinux format c > "$Dir/include/vmlinux.h" 2>/dev/null
 echo -e "  ${GREEN}✓${NC} vmlinux.h"
 
 # Generate shared header
-cat > "$Dir/src/$projectName.h" <<EOF
+cat > "$Dir/include/$projectName.h" <<EOF
 #ifndef __${projectName^^}_H
 #define __${projectName^^}_H
 
@@ -78,15 +80,15 @@ cat > "$Dir/src/$projectName.h" <<EOF
 
 #endif /* __${projectName^^}_H */
 EOF
-echo -e "  ${GREEN}✓${NC} src/$projectName.h"
+echo -e "  ${GREEN}✓${NC} include/$projectName.h"
 
 # Generate BPF program
 cat > "$Dir/src/$projectName.bpf.c" <<EOF
-#include "vmlinux.h"
+#include "../include/vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
-#include "$projectName.h"
+#include "../include/$projectName.h"
 
 char LICENSE[] SEC("license") = "GPL";
 
@@ -96,8 +98,8 @@ echo -e "  ${GREEN}✓${NC} src/$projectName.bpf.c"
 # Generate user-space loader
 cat > "$Dir/src/main.c" <<EOF
 #include <bpf/libbpf.h>
-#include "$projectName.h"
-#include "$projectName.skel.h"
+#include "../include/$projectName.h"
+#include "../include/$projectName.skel.h"
 
 EOF
 echo -e "  ${GREEN}✓${NC} src/main.c"
@@ -115,9 +117,10 @@ STRIP    ?= strip
 # Project
 APP      := $projectName
 SRC_DIR  := src
+HEAD_DIR := include
 BPF_SRC  := \$(SRC_DIR)/\$(APP).bpf.c
 BPF_OBJ  := \$(APP).bpf.o
-SKEL     := \$(SRC_DIR)/\$(APP).skel.h
+SKEL     := \$(SRC_DIR)/\$(HEAD_DIR).skel.h
 USER_SRC := \$(SRC_DIR)/main.c
 OUTPUT   := \$(APP)
 
@@ -144,12 +147,12 @@ endif
 all: \$(OUTPUT)
 
 # Step 1: Generate vmlinux.h
-\$(SRC_DIR)/vmlinux.h:
+\$(HEAD_DIR)/vmlinux.h:
 	@echo "=== Generating vmlinux.h ==="
 	\$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > \$@
 
 # Step 2: Compile BPF program
-\$(BPF_OBJ): \$(BPF_SRC) \$(SRC_DIR)/vmlinux.h \$(SRC_DIR)/\$(APP).h
+\$(BPF_OBJ): \$(BPF_SRC) \$(HEAD_DIR)/vmlinux.h \$(HEAD_DIR)/\$(APP).h
 	@echo "=== Compiling BPF program ==="
 	\$(CLANG) \$(BPF_CFLAGS) -c \$< -o \$@
 
@@ -159,7 +162,7 @@ all: \$(OUTPUT)
 	\$(BPFTOOL) gen skeleton \$< > \$@
 
 # Step 4: Compile user-space program
-\$(OUTPUT): \$(USER_SRC) \$(SKEL) \$(SRC_DIR)/\$(APP).h
+\$(OUTPUT): \$(USER_SRC) \$(SKEL) \$(HEAD_DIR)/\$(APP).h
 	@echo "=== Compiling user-space loader ==="
 	\$(CC) \$(USER_CFLAGS) \$< -o \$@ \$(LDFLAGS)
 
@@ -185,8 +188,8 @@ echo -e "  ${GREEN}✓${NC} Makefile"
 # Generate .gitignore
 cat > "$Dir/.gitignore" <<EOF
 *.o
-*.skel.h
-vmlinux.h
+include/*.skel.h
+include/vmlinux.h
 $projectName
 package.json
 .vscode/
